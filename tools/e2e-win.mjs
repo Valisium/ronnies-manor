@@ -1,0 +1,46 @@
+import puppeteer from '/Users/christopheradams/.cache/howto-video/node_modules/puppeteer/lib/puppeteer/puppeteer.js';
+const OUT = process.argv[2];
+const b = await puppeteer.launch({ headless: 'new' });
+const p = await b.newPage();
+await p.setViewport({ width: 412, height: 860, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+const errors = [];
+p.on('pageerror', (e) => errors.push('pageerror: ' + e.message + ' ' + (e.stack || '').split('\n').slice(0, 4).join(' | ')));
+p.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+await p.goto('http://localhost:8765/', { waitUntil: 'networkidle0' });
+await p.evaluate(() => { localStorage.setItem('ronnies-manor-v1', JSON.stringify({ v: 1, player: { name: 'Ronnie', avatar: 'bowls' }, level: 17, stars: { 1: 3, 2: 2 }, bricks: 120, streak: 4, boosters: { cab: 1, ben: 1, button: 0 } })); });
+await p.reload({ waitUntil: 'networkidle0' });
+await new Promise((r) => setTimeout(r, 700));
+await p.screenshot({ path: `${OUT}/w1-map.png` });
+await p.click('#btn-play'); await new Promise((r) => setTimeout(r, 500));
+await p.screenshot({ path: `${OUT}/w2-prelevel.png` });
+await p.click('[data-act="play"]'); await new Promise((r) => setTimeout(r, 1200));
+await p.evaluate(() => { window.__ronnie.G.board.goals.forEach((g) => { g.count = 0; }); });
+await p.screenshot({ path: `${OUT}/w3-club.png` });
+await p.evaluate(() => { const R = window.__ronnie, m = R.G.board.findMove(); R.view.onSwap(m[0], m[1]); });
+await new Promise((r) => setTimeout(r, 2500));
+await new Promise((r) => setTimeout(r, 300));
+await p.screenshot({ path: `${OUT}/w4-toucher.png` });
+// wait for celebration to appear
+for (let k = 0; k < 40; k++) { if (await p.evaluate(() => !document.getElementById('celebrate').hidden)) break; await new Promise((r) => setTimeout(r, 400)); }
+await new Promise((r) => setTimeout(r, 1900));
+await p.screenshot({ path: `${OUT}/w5-celebrate.png` });
+await new Promise((r) => setTimeout(r, 3500));
+await p.screenshot({ path: `${OUT}/w6-result.png` });
+console.log('state', JSON.stringify(await p.evaluate(() => ({ level: window.__ronnie.S.level, stars: window.__ronnie.S.stars[17], streak: window.__ronnie.S.streak, bricks: window.__ronnie.S.bricks }))));
+// daily
+await p.evaluate(() => { document.getElementById('sheet').hidden = true; });
+await p.evaluate(() => history.back()); await new Promise((r) => setTimeout(r, 600));
+await p.click('#btn-daily'); await new Promise((r) => setTimeout(r, 500));
+await p.click('.opt'); await new Promise((r) => setTimeout(r, 400));
+await p.screenshot({ path: `${OUT}/w7-daily.png` });
+await p.click('[data-act="play"]'); await new Promise((r) => setTimeout(r, 1200));
+await p.screenshot({ path: `${OUT}/w8-dailygame.png` });
+await p.evaluate(() => { window.__ronnie.G.moves = 1; });
+await p.evaluate(() => { const R = window.__ronnie, m = R.G.board.findMove(); R.view.onSwap(m[0], m[1]); });
+await new Promise((r) => setTimeout(r, 9000));
+await p.screenshot({ path: `${OUT}/w9-dailyend.png` });
+await p.evaluate(() => { document.getElementById('sheet').hidden = true; });
+await p.evaluate(() => { document.querySelector('#btn-board').click(); }); await new Promise((r) => setTimeout(r, 800));
+await p.screenshot({ path: `${OUT}/w10-board.png` });
+console.log(errors.length ? errors.join('\n') : 'no errors');
+await b.close();

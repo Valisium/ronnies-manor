@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0A2B21">
+<meta name="description" content="Ronnie's Manor: a London match-3 game. Mind the match, guv'nor.">
+<title>Ronnie's Manor</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&family=Fredoka:wght@500;600;700&family=Ultra&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Welcome: name and picture -->
+  <section id="scr-welcome" class="screen" hidden>
+    <div class="scroll pad">
+      <div class="sign">
+        <span class="est">Est. 2026 &middot; Free house</span>
+        <h1>Ronnie's Manor</h1>
+        <div class="rule"></div>
+        <p class="strap">Mind the match, guv'nor.</p>
+      </div>
+      <label class="big-label" for="in-name">What's your name, me old china?</label>
+      <input id="in-name" class="big-input" type="text" maxlength="16" autocomplete="off" placeholder="Your name">
+      <p class="big-label small">Pick your boat race (your face)</p>
+      <div id="welcome-avatars" class="avatar-grid"></div>
+      <button id="btn-welcome" class="btn btn-gold btn-wide" type="button">Let's 'ave it!</button>
+    </div>
+  </section>
+
+  <!-- Map -->
+  <section id="scr-map" class="screen" hidden>
+    <header class="topbar">
+      <button id="btn-profile" class="who" type="button" aria-label="Change name or picture"><span id="map-avatar"></span><span id="map-name"></span></button>
+      <div class="chips">
+        <span class="chip" title="Bricks"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2" fill="#B5542C"/><path d="M2 12h20M9 6v6M15 12v6" stroke="#7E3219" stroke-width="1.6"/></svg><b id="map-bricks">0</b></span>
+        <span class="chip" id="map-streak-chip" title="Win streak"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-4-1-6 1-9z" fill="#F26A1B"/></svg><b id="map-streak">0</b></span>
+      </div>
+      <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.3 5-1.8-.3a6.8 6.8 0 0 1-.7 1.7l1 1.5-1.8 1.8-1.5-1a6.8 6.8 0 0 1-1.7.7l-.3 1.8h-2.6l-.3-1.8a6.8 6.8 0 0 1-1.7-.7l-1.5 1-1.8-1.8 1-1.5a6.8 6.8 0 0 1-.7-1.7l-1.8-.3v-2.6l1.8-.3c.2-.6.4-1.2.7-1.7l-1-1.5 1.8-1.8 1.5 1c.5-.3 1.1-.5 1.7-.7l.3-1.8h2.6l.3 1.8c.6.2 1.2.4 1.7.7l1.5-1 1.8 1.8-1 1.5c.3.5.5 1.1.7 1.7l1.8.3z" fill="currentColor"/></svg></button>
+    </header>
+    <div id="happy-banner" class="happy" hidden></div>
+    <div class="scroll" id="map-scroll">
+      <div class="pad map-top">
+        <button id="btn-play" class="play-card" type="button">
+          <span class="eyebrow">Next stop</span>
+          <span class="play-title" id="play-title">Level 1</span>
+          <span class="play-sub" id="play-sub">Angel</span>
+          <span class="play-go">Play</span>
+        </button>
+        <div class="modes">
+          <button id="btn-daily" class="mode" type="button"><b>The Daily Ronnie</b><span id="daily-sub">Today's puzzle + Rhyme Time</span></button>
+          <button id="btn-night" class="mode" type="button"><b>Night Bus</b><span id="night-sub">Endless. How far can you go?</span></button>
+          <button id="btn-board" class="mode" type="button"><b>Top of the Manor</b><span>Family scores</span></button>
+        </div>
+      </div>
+      <div id="tube" class="tube"></div>
+    </div>
+  </section>
+
+  <!-- Game -->
+  <section id="scr-game" class="screen" hidden>
+    <header class="hud">
+      <button id="btn-quit" class="icon-btn" type="button" aria-label="Back to the map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="hud-title"><b id="g-title">Level 1</b><span id="g-sub">Angel</span></div>
+      <div class="hud-moves"><b id="g-moves">20</b><span>Moves</span></div>
+    </header>
+    <div class="hud2">
+      <div class="scorebox">
+        <b id="g-score">0</b>
+        <div class="starbar"><i id="g-starfill"></i><em id="g-s2"></em><em id="g-s3"></em></div>
+      </div>
+      <div id="g-goals" class="goals"></div>
+    </div>
+    <div class="board-wrap" id="board-wrap">
+      <canvas id="board"></canvas>
+      <div id="shout" class="shout" aria-live="polite"></div>
+      <button id="van" class="popper van" type="button" hidden aria-label="Ice cream van: tap for 5 more moves"><svg viewBox="0 0 120 64" aria-hidden="true"><rect x="4" y="14" width="84" height="36" rx="6" fill="#FBF3E6"/><rect x="4" y="38" width="84" height="6" fill="#F2A7C3"/><path d="M88 22 h16 l12 14 v14 h-28 z" fill="#FBF3E6"/><path d="M92 26 h11 l8 10 h-19 z" fill="#9FB3C8"/><rect x="14" y="20" width="44" height="14" rx="3" fill="#9FB3C8"/><path d="M60 4 l6 12 h-12 z" fill="#E8B640"/><circle cx="60" cy="4" r="4" fill="#F2A7C3"/><circle cx="24" cy="52" r="8" fill="#1B1B1B"/><circle cx="96" cy="52" r="8" fill="#1B1B1B"/><text x="36" y="47" font-size="7" font-family="sans-serif" font-weight="700" fill="#B8336A" text-anchor="middle">ICES</text></svg><span>+5 moves</span></button>
+      <button id="pigeon" class="popper pigeon" type="button" hidden aria-label="Golden pigeon: tap for 50 bricks"><svg viewBox="0 0 64 48" aria-hidden="true"><path d="M8 26 Q20 6 36 14 L50 8 Q46 18 52 22 L62 22 L52 28 Q46 40 28 40 Q14 40 8 26 Z" fill="#F0C861" stroke="#8C6D2F" stroke-width="2"/><path d="M18 22 Q30 2 44 12 Q34 16 30 26 Z" fill="#D9A93A"/><circle cx="52" cy="20" r="2" fill="#1B1B1B"/></svg><span>+50 bricks</span></button>
+    </div>
+    <footer class="gamebar">
+      <button id="btn-hint" class="btn btn-ghost" type="button">Have a butcher's <small>(hint)</small></button>
+    </footer>
+  </section>
+
+  <!-- Leaderboard -->
+  <section id="scr-board" class="screen" hidden>
+    <header class="topbar"><button class="icon-btn back" type="button" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button><h2 class="bar-title">Top of the Manor</h2><span></span></header>
+    <div class="scroll pad">
+      <div class="tabs" role="tablist">
+        <button class="tab on" data-board="daily" type="button">Daily Ronnie</button>
+        <button class="tab" data-board="night" type="button">Night Bus</button>
+        <button class="tab" data-board="furthest" type="button">Furthest</button>
+      </div>
+      <ol id="lb" class="lb"></ol>
+      <p id="lb-note" class="note"></p>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section id="scr-settings" class="screen" hidden>
+    <header class="topbar"><button class="icon-btn back" type="button" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button><h2 class="bar-title">Settings</h2><span></span></header>
+    <div class="scroll pad settings">
+      <label class="toggle"><input type="checkbox" id="set-sfx"><span>Sound effects</span></label>
+      <label class="toggle"><input type="checkbox" id="set-voice"><span>The Cabbie's voice</span></label>
+      <label class="toggle"><input type="checkbox" id="set-vibrate"><span>Buzz on big moments</span></label>
+      <label class="toggle"><input type="checkbox" id="set-kettle"><span>"Kettle on?" every two hours</span></label>
+      <button id="btn-change" class="btn btn-ghost btn-wide" type="button">Change name or picture</button>
+      <div class="about">
+        <h3>How to play</h3>
+        <p>Swipe a tile, or tap one tile then the one next to it, to swap them. Line up three or more the same to clear them.</p>
+        <ul>
+          <li><b>4 in a line:</b> Black Cab. Clears a whole row or column.</li>
+          <li><b>L or T shape:</b> Big Ben. Blasts the tiles around it.</li>
+          <li><b>5 in a line:</b> Pearly Button. Swap it with a tile to clear every tile of that colour.</li>
+          <li><b>2&times;2 square:</b> The Wood. Bowls across the board on a curve.</li>
+          <li>Tap a power-up twice to set it off where it is. Swap two power-ups together for a big combo.</li>
+        </ul>
+        <p class="note">Voice made with Qwen3-TTS. Built for Uncle Ronnie with love.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Sheets and overlays -->
+<div id="sheet" class="sheet" hidden><div class="sheet-card" id="sheet-card" role="dialog" aria-modal="true"></div></div>
+<div id="celebrate" class="celebrate" hidden>
+  <canvas id="confetti"></canvas>
+  <div class="cel-inner">
+    <div class="stamp" id="cel-stamp">BLINDING!</div>
+    <div class="cel-stars" id="cel-stars"></div>
+    <div class="cel-score" id="cel-score">0</div>
+    <div class="cel-sub" id="cel-sub"></div>
+  </div>
+  <div class="bus-run" id="cel-bus"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="8" width="36" height="29" rx="7" fill="#D6202B"/><rect x="10" y="12" width="28" height="7" rx="2" fill="#F5EEDC"/><rect x="6" y="20.5" width="36" height="2" fill="#9E1119"/><rect x="10" y="24" width="28" height="6" rx="2" fill="#F5EEDC" opacity=".85"/><circle cx="15" cy="38" r="4.2" fill="#1B1B1B"/><circle cx="33" cy="38" r="4.2" fill="#1B1B1B"/></svg><span id="cel-bus-text">LEVEL DONE</span></div>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
