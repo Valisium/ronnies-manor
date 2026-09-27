@@ -9,12 +9,16 @@ const fresh = () => ({
   bricks: 0,
   boosters: { cab: 0, ben: 0, button: 0 },
   streak: 0, winsSinceSwag: 0,
-  settings: { sfx: true, voice: true, vibrate: true, kettle: true },
+  settings: { sfx: true, voice: true, vibrate: true, kettle: true, music: true },
   daily: { date: '', best: 0, plays: 0, rhyme: null },
   nightBest: 0,
   bigBenHour: '',
   pending: [],
   stats: { played: 0, won: 0 },
+  tries: {},
+  pub: { done: [] },
+  backupDue: false, backupAt: 0,
+  wheelDate: '',
 });
 
 export function load() {
@@ -23,7 +27,7 @@ export function load() {
     if (!raw) return fresh();
     const s = JSON.parse(raw);
     const f = fresh();
-    return { ...f, ...s, settings: { ...f.settings, ...s.settings }, boosters: { ...f.boosters, ...s.boosters }, daily: { ...f.daily, ...s.daily }, stats: { ...f.stats, ...s.stats } };
+    return { ...f, ...s, settings: { ...f.settings, ...s.settings }, boosters: { ...f.boosters, ...s.boosters }, daily: { ...f.daily, ...s.daily }, stats: { ...f.stats, ...s.stats }, pub: { ...f.pub, ...s.pub }, tries: s.tries || {} };
   } catch (e) {
     return fresh();
   }

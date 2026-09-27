@@ -2,6 +2,9 @@ import puppeteer from '/Users/christopheradams/.cache/howto-video/node_modules/p
 const OUT = process.argv[2];
 const b = await puppeteer.launch({ headless: 'new' });
 const p = await b.newPage();
+// never let tests touch the family's real leaderboard sheet
+await p.setRequestInterception(true);
+p.on('request', (r) => (r.url().includes('script.google') ? r.abort() : r.continue()));
 await p.setViewport({ width: 360, height: 740, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror: ' + e.message + ' ' + (e.stack || '').split('\n').slice(0, 3).join(' | ')));

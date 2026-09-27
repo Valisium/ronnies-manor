@@ -95,6 +95,74 @@ export class Sound {
 
   preload(groups) { if (!this.ctx) return; for (const l of VOICE_LINES) if (groups.includes(l.group)) this.buffer(l.id); }
 
+  // Say one particular line by id.
+  async sayId(id, { force = true } = {}) {
+    if (!this.ctx || !this.settings.voice) return null;
+    const line = VOICE_LINES.find((l) => l.id === id);
+    if (!line) return null;
+    const t = performance.now();
+    if (!force && t - this.lastVoice < 1600) return null;
+    this.lastVoice = t;
+    const buf = await this.buffer(id);
+    if (!buf) return line;
+    if (this.current) { try { this.current.stop(); } catch (e) { /* already stopped */ } }
+    const src = this.ctx.createBufferSource(); src.buffer = buf; src.connect(this.voiceBus); src.start();
+    this.current = src;
+    return line;
+  }
+
+  // ---------- pub piano (an original music-hall tune, synthesised) ----------
+  pianoNote(freq, t, len, gain) {
+    for (const det of [-5, 6]) {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = freq; o.detune.value = det;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(gain * 0.35, t + 0.12);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.25, len));
+      o.connect(g).connect(this.musicBus); o.start(t); o.stop(t + len + 0.1);
+    }
+  }
+
+  music(on) {
+    if (!this.ctx) return;
+    if (!this.musicBus) { this.musicBus = this.ctx.createGain(); this.musicBus.gain.value = 0.22; this.musicBus.connect(this.master); }
+    if (!on || !this.settings.music) {
+      if (this.musicTimer) { clearInterval(this.musicTimer); this.musicTimer = null; }
+      this.musicBus.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.15);
+      return;
+    }
+    this.musicBus.gain.setTargetAtTime(0.22, this.ctx.currentTime, 0.2);
+    if (this.musicTimer) return;
+    const N = { C3: 131, G2: 98, F2: 87, D3: 147, E3: 165, G3: 196, A3: 220, B3: 247, C4: 262, D4: 294, E4: 330, F4: 349, G4: 392, A4: 440, B4: 494, C5: 523, D5: 587, E5: 659, F5: 698 };
+    const bars = [
+      ['C', [['E4', 1], ['G4', 1], ['C5', 1], ['G4', 1]]], ['C', [['A4', .5], ['G4', .5], ['E4', 1], ['C4', 1], ['E4', 1]]],
+      ['F', [['F4', 1], ['A4', 1], ['C5', 1], ['A4', 1]]], ['C', [['G4', 2], ['E4', 1], [null, 1]]],
+      ['G', [['D4', 1], ['F4', 1], ['B4', 1], ['D5', 1]]], ['G', [['C5', .5], ['B4', .5], ['A4', 1], ['G4', 2]]],
+      ['C', [['E4', 1], ['G4', 1], ['C5', 1.5], ['B4', .5]]], ['G', [['A4', 1], ['G4', 1], ['F4', 1], ['D4', 1]]],
+      ['C', [['E4', 1], ['G4', 1], ['C5', 1], ['E5', 1]]], ['C', [['D5', .5], ['C5', .5], ['B4', 1], ['A4', 1], ['G4', 1]]],
+      ['F', [['A4', 1], ['C5', 1], ['F5', 1], ['C5', 1]]], ['F', [['D5', 1], ['C5', 1], ['A4', 2]]],
+      ['C', [['G4', 1], ['C5', 1], ['E5', 1], ['D5', .5], ['C5', .5]]], ['G', [['B4', 1], ['D5', 1], ['G4', 2]]],
+      ['C', [['C5', 1], ['G4', 1], ['E4', 1], ['G4', 1]]], ['C', [['C5', 3], [null, 1]]],
+    ];
+    const chords = { C: { bass: ['C3', 'G2'], ch: ['E3', 'G3', 'C4'] }, F: { bass: ['F2', 'C3'], ch: ['F4', 'A3', 'C4'] }, G: { bass: ['G2', 'D3'], ch: ['F4', 'B3', 'D4'] } };
+    const beat = 60 / 132;
+    let bar = 0, next = this.ctx.currentTime + 0.1;
+    const schedule = () => {
+      while (next < this.ctx.currentTime + 0.6) {
+        const [c, mel] = bars[bar % bars.length];
+        const ch = chords[c];
+        this.pianoNote(N[ch.bass[0]], next, beat, 0.22); this.pianoNote(N[ch.bass[1]], next + 2 * beat, beat, 0.2);
+        for (const b of [1, 3]) for (const n of ch.ch) this.pianoNote(N[n], next + b * beat, beat * 0.5, 0.07);
+        let t = next;
+        for (const [n, d] of mel) { if (n) this.pianoNote(N[n], t, d * beat, 0.16); t += d * beat; }
+        next += 4 * beat; bar++;
+      }
+    };
+    schedule();
+    this.musicTimer = setInterval(schedule, 150);
+  }
+
   // Say a line from a group. Lines mentioning Ron only play for players whose name starts with Ron.
   async say(group, { ron = false, force = false } = {}) {
     if (!this.ctx || !this.settings.voice) return null;

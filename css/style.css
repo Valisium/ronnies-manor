@@ -240,3 +240,29 @@ p { margin: 0; }
   .shout.go, .celebrate.play .stamp, .cel-stars svg.in, .celebrate.play .bus-run, .toast, .sheet-card, .hud-moves.low { animation-duration: .01s !important; }
   .van, .pigeon { animation-duration: 9s; }
 }
+
+/* ---------- v2: pub, wheel, barrow ---------- */
+.mode-pub { background: linear-gradient(135deg, #6E4B32, #3A2A1E); border-color: rgba(217,169,58,.5); }
+.mode-pub.ready { box-shadow: 0 0 0 3px var(--gold); }
+.mode-wheel { background: linear-gradient(135deg, #FBF8F0, #E4DCC6); color: var(--ground-deep); }
+.mode-wheel span { color: #6E4F12; }
+.scene-wrap { border: 3px solid var(--gold); border-radius: 14px; background: #0A2B21; position: relative; }
+.scene-wrap .scene { display: block; width: 100%; height: auto; aspect-ratio: 6 / 5; border-radius: 11px; }
+.scene-wrap.glow { animation: glow 1.2s ease; }
+@keyframes glow { 0% { box-shadow: 0 0 0 0 rgba(240,200,97,.9); transform: scale(1); } 30% { transform: scale(1.03); } 100% { box-shadow: 0 0 0 24px rgba(240,200,97,0); transform: scale(1); } }
+.pub-next { display: grid; gap: 10px; background: var(--panel); border: 2px solid var(--gold); border-radius: 16px; padding: 16px; }
+.pub-next b { font: 600 22px/1.2 var(--game); }
+.pub-next .cost { font: 700 18px/1 var(--game); color: var(--gold); }
+.pub-jobs { display: grid; gap: 6px; }
+.pub-job { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--ground-deep); font: 600 16px/1.25 var(--game); color: var(--cream-dim); }
+.pub-job.done { color: var(--gold); }
+.pub-job small { font: 700 14px/1.25 var(--game); white-space: nowrap; }
+.wheel-box { position: relative; width: min(300px, 80vw); aspect-ratio: 1; margin: 0 auto; }
+.wheel-box svg.wheel { width: 100%; height: 100%; transition: transform 3.6s cubic-bezier(.12,.8,.18,1); }
+.wheel-box .pointer { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); width: 0; height: 0; border-left: 16px solid transparent; border-right: 16px solid transparent; border-top: 28px solid var(--red); filter: drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
+.offers { display: grid; gap: 8px; }
+.offer { display: flex; align-items: center; gap: 12px; border: 2px solid var(--line); background: var(--ground-deep); border-radius: 14px; padding: 10px 14px; text-align: left; }
+.offer .tile-ico { width: 48px; height: 48px; flex: none; }
+.offer b { font: 600 18px/1.2 var(--game); flex: 1; }
+.offer span { font: 700 17px/1 var(--game); color: var(--gold); white-space: nowrap; }
+.offer[disabled] { opacity: .45; }

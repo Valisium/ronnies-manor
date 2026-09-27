@@ -68,6 +68,9 @@ const SHAPES = {
   middle: (W, H) => { const cx = (W / 2) | 0, cy = (H / 2) | 0; return [cy * W + cx - 1, cy * W + cx, (cy - 1) * W + cx - 1, (cy - 1) * W + cx]; },
   pillars: (W, H) => { const o = []; for (let y = 2; y < H - 2; y++) { o.push(y * W + 2, y * W + W - 3); } return o; },
   notch: (W, H) => { const cx = (W / 2) | 0; return [cx - 1, cx, W + cx - 1, W + cx]; },
+  diamond: (W, H) => { const o = []; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const dx = Math.abs(x - (W - 1) / 2), dy = Math.abs(y - (H - 1) / 2); if (dx + dy > (W + H) / 3.2) o.push(y * W + x); } return o; },
+  hourglass: (W, H) => { const o = []; const my = (H / 2) | 0; for (const y of [my - 1, my]) for (const x of [0, 1, W - 2, W - 1]) o.push(y * W + x); return o; },
+  arches: (W, H) => { const o = []; for (const x of [2, W - 3]) for (let y = H - 3; y < H; y++) o.push(y * W + x); return o; },
 };
 
 let CAL = null; // calibration table from data/levels.json
@@ -91,6 +94,7 @@ export function makeLevel(n, opts = {}) {
   let shape = 'full';
   if (n > 40 && r() < 0.35) shape = pickFrom(r, ['corners', 'middle', 'notch']);
   if (n > 90 && r() < 0.45) shape = pickFrom(r, ['corners', 'bigcorners', 'middle', 'pillars', 'notch']);
+  if (n > 150 && r() < 0.5) shape = pickFrom(r, ['diamond', 'hourglass', 'arches', 'bigcorners', 'pillars']);
   const holes = SHAPES[shape](cols, rows);
   const holeSet = new Set(holes);
 
@@ -103,7 +107,7 @@ export function makeLevel(n, opts = {}) {
   const goals = [];
   const intro = {
     puddles: n >= 3, eels: n >= 7, fog: n >= 11, clamps: n >= 16, cones: n >= 31, doublePuddles: n >= 31,
-    twoGoals: n >= 91, threeGoals: n >= 200,
+    twoGoals: n >= 91, threeGoals: n >= 200, boxes: n >= 25, pigeons: n >= 121,
   };
   const kinds = ['collect', 'score'];
   if (intro.puddles) kinds.push('puddles', 'puddles');
@@ -161,6 +165,8 @@ export function makeLevel(n, opts = {}) {
       blockers.push({ i, type: cone ? B.CONE : B.FOG, hp: cone ? 2 : 1 });
     }
   }
+  if (intro.boxes && r() < 0.3) for (const i of takeCells(1 + (r() < d ? 1 : 0), (i) => ((i / cols) | 0) >= 2)) blockers.push({ i, type: B.BOX, hp: 2 });
+  if (intro.pigeons && r() < 0.25 + d * 0.3) for (const i of takeCells(1 + Math.round(r() * d * 2), (i) => ((i / cols) | 0) >= 1)) blockers.push({ i, type: B.PIGEON, hp: 1 });
   if (intro.clamps && r() < 0.3 + d * 0.6) {
     for (const i of takeCells(Math.max(2, Math.round((3 + d * 8) * sc)))) clamps.push({ i, layers: n > 120 && r() < d ? 2 : 1 });
   }

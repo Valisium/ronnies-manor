@@ -6,7 +6,7 @@
 // renderer animates one after another.
 
 export const K = { EMPTY: 0, NORMAL: 1, CABH: 2, CABV: 3, BEN: 4, BUTTON: 5, WOOD: 6, EEL: 7, JACK: 8 };
-export const B = { NONE: 0, FOG: 1, CONE: 2 };
+export const B = { NONE: 0, FOG: 1, CONE: 2, BOX: 3, PIGEON: 4 };
 export const COLOURS = 7; // bus, roundel, crown, cuppa, pie, brolly, pint
 
 const PTS = { tile: 60, puddle: 100, blocker: 100, clamp: 80, ingredient: 1000, cab: 120, ben: 200, wood: 200, button: 400 };
@@ -49,6 +49,8 @@ export class Board {
     this.col = new Int8Array(N).fill(-1);
     this.clamp = new Uint8Array(N);
     this.id = new Int32Array(N);
+    this.lucky = new Uint8Array(N);
+    this.luckyChance = opts.luckyChance || 0;
     this.nextId = 1;
     this.colours = level.colours;
     this.rand = rng(opts.seed ?? level.seed ?? 1);
@@ -85,14 +87,14 @@ export class Board {
   puddleTotal() { let s = 0; for (let i = 0; i < this.N; i++) s += this.puddle[i]; return s; }
   blockerTotal() { let s = 0; for (let i = 0; i < this.N; i++) if (this.blk[i]) s += this.bhp[i]; return s; }
   randColour() { return (this.rand() * this.colours) | 0; }
-  put(i, kind, col) { this.kind[i] = kind; this.col[i] = col; this.id[i] = this.nextId++; this.clamp[i] = 0; }
-  clearTile(i) { this.kind[i] = K.EMPTY; this.col[i] = -1; this.id[i] = 0; this.clamp[i] = 0; }
+  put(i, kind, col) { this.kind[i] = kind; this.col[i] = col; this.id[i] = this.nextId++; this.clamp[i] = 0; this.lucky[i] = 0; }
+  clearTile(i) { this.kind[i] = K.EMPTY; this.col[i] = -1; this.id[i] = 0; this.clamp[i] = 0; this.lucky[i] = 0; }
 
   snapshot() {
     return {
       W: this.W, H: this.H,
       hole: this.hole, puddle: this.puddle.slice(), blk: this.blk.slice(), bhp: this.bhp.slice(),
-      kind: this.kind.slice(), col: this.col.slice(), clamp: this.clamp.slice(), id: this.id.slice(),
+      kind: this.kind.slice(), col: this.col.slice(), clamp: this.clamp.slice(), id: this.id.slice(), lucky: this.lucky.slice(),
     };
   }
 
@@ -250,7 +252,7 @@ export class Board {
   }
 
   swapRaw(a, b) {
-    for (const arr of [this.kind, this.col, this.clamp, this.id]) { const t = arr[a]; arr[a] = arr[b]; arr[b] = t; }
+    for (const arr of [this.kind, this.col, this.clamp, this.id, this.lucky]) { const t = arr[a]; arr[a] = arr[b]; arr[b] = t; }
   }
 
   adjacent(a, b) {
@@ -293,7 +295,7 @@ export class Board {
   }
 
   // ---------- resolving ----------
-  newStats() { return { cleared: new Array(COLOURS).fill(0), puddles: 0, blockers: 0, clamps: 0, ingredients: 0, specials: 0, cascade: 0, score: 0, made: [] }; }
+  newStats() { return { cleared: new Array(COLOURS).fill(0), puddles: 0, blockers: 0, clamps: 0, ingredients: 0, specials: 0, cascade: 0, score: 0, made: [], lucky: 0, boxes: 0, nicked: 0 }; }
 
   addScore(p, st) { const v = Math.round(p * this.mult); this.score += v; st.score += v; }
 
@@ -306,14 +308,25 @@ export class Board {
   hit(i, st, queue, cascade, fromMatch) {
     if (i < 0 || this.hole[i]) return;
     if (this.blk[i]) {
+      if (this.hitThisStep && this.hitThisStep.has(i)) return; // one knock per blocker per step
+      if (this.hitThisStep) this.hitThisStep.add(i);
       this.bhp[i]--; st.blockers++; this.addScore(PTS.blocker, st);
-      if (this.bhp[i] <= 0) { this.blk[i] = 0; this.bhp[i] = 0; }
+      if (this.bhp[i] <= 0) {
+        const wasBox = this.blk[i] === B.BOX;
+        this.blk[i] = 0; this.bhp[i] = 0;
+        if (wasBox) {
+          const r = this.rand();
+          this.put(i, r < 0.4 ? (this.rand() < 0.5 ? K.CABH : K.CABV) : r < 0.75 ? K.BEN : K.WOOD, this.randColour());
+          st.boxes++; st.specials++;
+        }
+      }
       return;
     }
     const k = this.kind[i];
     if (!k || isIngredient(k)) return;
     if (this.clamp[i] > 0) { this.clamp[i]--; st.clamps++; this.addScore(PTS.clamp, st); return; }
     if (this.col[i] >= 0) st.cleared[this.col[i]]++;
+    if (this.lucky[i]) st.lucky++;
     if (isSpecial(k)) queue.push({ i, kind: k, c: this.col[i] });
     this.clearTile(i);
     this.addScore(PTS.tile * Math.max(1, cascade), st);
@@ -455,6 +468,7 @@ export class Board {
       this.ingredientsOnBoard++; this.ingredientsSpawned++;
     } else {
       this.put(i, K.NORMAL, this.randColour());
+      if (this.luckyChance && this.rand() < this.luckyChance) this.lucky[i] = 1;
     }
     if (this.record) (this.spawned || (this.spawned = new Map())).set(this.id[i], fromY);
   }
@@ -488,6 +502,7 @@ export class Board {
       cascade++;
       const fx = pendingFx; pendingFx = [];
       const queue = [];
+      this.hitThisStep = new Set();
       const makes = [];
       for (const g of groups) {
         const sp = this.specialFor(g, cascade === 1 ? prefer : []);
@@ -503,6 +518,7 @@ export class Board {
         fx.push({ t: 'match', cells: [...g.cells], c: g.c, n: g.cells.size });
       }
       this.runQueue(queue, st, cascade, fx);
+      this.hitThisStep = null;
       for (const sp of makes) {
         if (!this.empty(sp.spot)) continue;
         this.put(sp.spot, sp.kind, sp.kind === K.BUTTON ? -1 : sp.c);
@@ -531,7 +547,33 @@ export class Board {
 
   goalsDone() { return this.goals.every((g) => g.done >= g.count); }
 
+  // Tea-leaf pigeons: each one nicks a neighbouring tile and hops into its place.
+  pigeonsHop(steps, st) {
+    const birds = [];
+    for (let i = 0; i < this.N; i++) if (this.blk[i] === B.PIGEON) birds.push(i);
+    if (!birds.length) return;
+    const moved = new Set();
+    const fx = [];
+    for (const i of birds) {
+      const [x, y] = this.xy(i);
+      const opts = [this.at(x + 1, y), this.at(x - 1, y), this.at(x, y + 1), this.at(x, y - 1)]
+        .filter((j) => j >= 0 && !moved.has(j) && !this.hole[j] && !this.blk[j] && this.kind[j] === K.NORMAL && !this.clamp[j]);
+      if (!opts.length) continue;
+      const j = opts[(this.rand() * opts.length) | 0];
+      this.clearTile(j); st.nicked++;
+      this.blk[j] = B.PIGEON; this.bhp[j] = this.bhp[i];
+      this.blk[i] = 0; this.bhp[i] = 0;
+      moved.add(j);
+      fx.push({ t: 'hop', from: i, to: j });
+    }
+    if (!fx.length) return;
+    this.step(steps, fx, st);
+    this.spawned = null; this.gravity(); this.step(steps, [], st, { fall: this.spawned }); this.spawned = null;
+    this.cascadeLoop(steps, st, []);
+  }
+
   afterMove(steps, st) {
+    this.pigeonsHop(steps, st);
     this.updateGoals(st);
     if (!this.goalsDone() && !this.findMove()) this.shuffle(true, steps);
   }

@@ -54,6 +54,8 @@
           <span class="play-go">Play</span>
         </button>
         <div class="modes">
+          <button id="btn-pub" class="mode mode-pub" type="button"><b>The Ronnie Arms</b><span id="pub-sub">Do up your boozer with your bricks</span></button>
+          <button id="btn-wheel" class="mode mode-wheel" type="button" hidden><b>The Pearly Wheel</b><span>Free spin today!</span></button>
           <button id="btn-daily" class="mode" type="button"><b>The Daily Ronnie</b><span id="daily-sub">Today's puzzle + Rhyme Time</span></button>
           <button id="btn-night" class="mode" type="button"><b>Night Bus</b><span id="night-sub">Endless. How far can you go?</span></button>
           <button id="btn-board" class="mode" type="button"><b>Top of the Manor</b><span>Family scores</span></button>
@@ -88,6 +90,17 @@
     </footer>
   </section>
 
+  <!-- The Ronnie Arms -->
+  <section id="scr-pub" class="screen" hidden>
+    <header class="topbar"><button class="icon-btn back" type="button" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button><h2 class="bar-title" id="pub-title">The Ronnie Arms</h2><span class="chip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2" fill="#B5542C"/><path d="M2 12h20M9 6v6M15 12v6" stroke="#7E3219" stroke-width="1.6"/></svg><b id="pub-bricks">0</b></span></header>
+    <div class="scroll pad">
+      <div class="scene-wrap" id="pub-scene"></div>
+      <p class="note" id="pub-intro"></p>
+      <div id="pub-next" class="pub-next"></div>
+      <div id="pub-jobs" class="pub-jobs"></div>
+    </div>
+  </section>
+
   <!-- Leaderboard -->
   <section id="scr-board" class="screen" hidden>
     <header class="topbar"><button class="icon-btn back" type="button" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button><h2 class="bar-title">Top of the Manor</h2><span></span></header>
@@ -109,8 +122,11 @@
       <label class="toggle"><input type="checkbox" id="set-sfx"><span>Sound effects</span></label>
       <label class="toggle"><input type="checkbox" id="set-voice"><span>The Cabbie's voice</span></label>
       <label class="toggle"><input type="checkbox" id="set-vibrate"><span>Buzz on big moments</span></label>
+      <label class="toggle"><input type="checkbox" id="set-music"><span>Pub piano on the map</span></label>
       <label class="toggle"><input type="checkbox" id="set-kettle"><span>"Kettle on?" every two hours</span></label>
       <button id="btn-change" class="btn btn-ghost btn-wide" type="button">Change name or picture</button>
+      <button id="btn-restore" class="btn btn-ghost btn-wide" type="button">Restore my saved game</button>
+      <p class="note">Your progress is backed up to the family sheet after every level. On a new phone, use the same name and tap Restore.</p>
       <div class="about">
         <h3>How to play</h3>
         <p>Swipe a tile, or tap one tile then the one next to it, to swap them. Line up three or more the same to clear them.</p>

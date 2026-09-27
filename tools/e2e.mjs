@@ -4,10 +4,13 @@ const OUT = process.argv[2] || '/tmp';
 const URL = process.argv[3] || 'http://localhost:8765/';
 const b = await puppeteer.launch({ headless: 'new', args: ['--autoplay-policy=no-user-gesture-required'] });
 const p = await b.newPage();
+// never let tests touch the family's real leaderboard sheet
+await p.setRequestInterception(true);
+p.on('request', (r) => (r.url().includes('script.google') ? r.abort() : r.continue()));
 await p.setViewport({ width: 412, height: 860, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-p.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+p.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('Failed to load resource')) errors.push('console: ' + m.text()); });
 await p.goto(URL, { waitUntil: 'networkidle0' });
 await p.evaluate(() => localStorage.clear());
 await p.reload({ waitUntil: 'networkidle0' });

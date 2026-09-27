@@ -20,7 +20,12 @@ down the green. Plays in the phone's browser, installs to the home screen, works
   win streaks, and pop-ups: ice cream van, golden pigeon, Big Ben on the hour, Happy Hour, bag of swag.
 - The Daily Ronnie (same board for the family each day) with a Rhyme Time slang question,
   Night Bus endless mode, and a family leaderboard in a Google Sheet (`backend/SETUP.md`).
-- A Cockney cab driver voice for 58 lines, made locally with Qwen3-TTS (a designed voice; no real
+- **The Ronnie Arms:** spend bricks doing up his own pub on Upper Street (12 jobs), then the beer garden
+  (10 jobs, including his own bowling green). Plus the daily Pearly Wheel, the Chapel Market barrow,
+  the lucky jack (double points), lost property boxes and tea-leaf pigeons that nick tiles.
+- Progress backed up to the family sheet after every level; restore by name on a new phone.
+- An original pub-piano tune on the map, synthesised in the browser.
+- A Cockney cab driver voice for 233 lines (station call-outs, goals, pub jobs, jokes), made locally with Qwen3-TTS (a designed voice; no real
   person's voice is copied).
 
 ## Working on it
@@ -32,6 +37,7 @@ python3 -m http.server 8765          # then open http://localhost:8765
 node tools/smoke.mjs                 # quick engine + level check
 node tools/calibrate.mjs 1 300 40    # robot playtester -> data/levels.json
 node tools/make_sw.mjs               # refresh the offline file list after changing files
+node tools/e2e.mjs <outdir>          # browser tests (also e2e-win, e2e-night, e2e-v2); they block the live sheet
 bash tools/make_voice.sh             # speak any new lines in tools/voice-lines.json
 ```
 
@@ -43,4 +49,5 @@ bash tools/make_voice.sh             # speak any new lines in tools/voice-lines.
 | `js/app.js` | Screens, game flow, celebrations, pop-ups, modes |
 | `js/audio.js` | Synthesised sound effects and voice playback |
 | `js/art.js` | All artwork as SVG |
+| `js/pub.js` | The Ronnie Arms chapters, jobs and scenes |
 | `backend/Code.gs` | Google Apps Script for the family leaderboard |

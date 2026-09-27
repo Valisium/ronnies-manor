@@ -5,8 +5,10 @@ import { loadImages, AVATARS, avatarSvg, tileSvg, specialSvg, overlaySvg, TILE_N
 import { BoardView } from './render.js';
 import { Sound, buzz } from './audio.js';
 import { load, save, today } from './store.js';
-import { queueScore, flush, top, configured, BOARDS } from './leaderboard.js';
+import { queueScore, flush, top, configured, BOARDS, backupProgress, fetchProgress } from './leaderboard.js';
 import { rhymeFor } from './slang.js';
+import { CHAPTERS, nextJob, chapterOf, sceneFor } from './pub.js';
+import { VOICE_LINES } from './voices.js';
 
 const $ = (id) => document.getElementById(id);
 const S = load();
@@ -19,17 +21,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const STAR = (on, cls = '') => `<svg viewBox="0 0 24 24" class="${on ? '' : 'off'} ${cls}" aria-hidden="true"><path d="M12 2l3 6.5 7 .8-5.2 4.8 1.4 7L12 17.6 5.8 21l1.4-7L2 9.3l7-.8z" fill="#F0C861" stroke="#6E4F12" stroke-width="1.2"/></svg>`;
 const say = (group, opts = {}) => sound.say(group, { ron: isRon(), ...opts });
 const vibe = (p) => { if (S.settings.vibrate) buzz(p); };
+const backup = () => { backupProgress(S, persist); };
+const PROGRESS_KEYS = ['level', 'stars', 'best', 'bricks', 'boosters', 'streak', 'winsSinceSwag', 'nightBest', 'stats', 'pub', 'tries'];
+function applyProgress(d) { for (const k of PROGRESS_KEYS) if (d[k] !== undefined) S[k] = d[k]; persist(); }
+const dateLabel = (v) => { try { return new Date(v).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }); } catch (e) { return ''; } };
 
 let images = null, view = null, G = null;
 let kettleAt = Date.now();
 
 // ---------- screens ----------
-const SCREENS = ['scr-welcome', 'scr-map', 'scr-game', 'scr-board', 'scr-settings'];
+const SCREENS = ['scr-welcome', 'scr-map', 'scr-game', 'scr-board', 'scr-settings', 'scr-pub'];
+const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 let current = '';
 function show(id, push = true) {
   for (const s of SCREENS) $(s).hidden = s !== id;
   if (push && id !== 'scr-map' && id !== 'scr-welcome' && current !== id) history.pushState({ s: id }, '');
   current = id;
+  sound.music(id === 'scr-map' || id === 'scr-pub');
 }
 
 function toast(msg, ms = 3200) {
@@ -60,7 +68,7 @@ $('welcome-avatars').addEventListener('click', (e) => {
   sound.unlock(); sound.sfx('tap');
   for (const x of $('welcome-avatars').querySelectorAll('.av')) x.setAttribute('aria-pressed', x === b);
 });
-$('btn-welcome').addEventListener('click', () => {
+$('btn-welcome').addEventListener('click', async () => {
   sound.unlock();
   const name = $('in-name').value.trim().slice(0, 16);
   if (!name) { toast('Go on, tell us your name first.'); $('in-name').focus(); return; }
@@ -70,8 +78,24 @@ $('btn-welcome').addEventListener('click', () => {
   sound.sfx('win');
   say('welcome', { force: true });
   renderMap();
-  if (first) setTimeout(() => toast(`Welcome to the Manor, ${name}! Tap Play to start at Angel.`, 4200), 400);
+  if (!first) return;
+  const found = S.level <= 1 ? await fetchProgress(name) : null;
+  if (found && (found.data.level || 1) > 1) offerRestore(found, true);
+  else setTimeout(() => toast(`Welcome to the Manor, ${name}! Tap Play to start at Angel.`, 4200), 400);
 });
+
+function offerRestore(found, welcome) {
+  const d = found.data;
+  const card = openSheet(`
+    <h2>${welcome ? `Welcome back, ${esc(S.player.name)}!` : 'Restore your progress?'}</h2>
+    <p>We found your saved game from ${esc(dateLabel(found.saved))}:</p>
+    <div class="stat-row"><span>Level</span><b>${fmt(d.level || 1)}</b></div>
+    <div class="stat-row"><span>Bricks</span><b>${fmt(d.bricks || 0)}</b></div>
+    <p class="note">${welcome ? 'Pick up where you left off?' : 'This replaces the progress on this phone.'}</p>
+    <div class="row"><button type="button" class="btn btn-ghost" data-act="no">${welcome ? 'Start fresh' : 'Cancel'}</button><button type="button" class="btn btn-gold" data-act="yes">Restore</button></div>`);
+  card.querySelector('[data-act="no"]').onclick = closeSheet;
+  card.querySelector('[data-act="yes"]').onclick = () => { applyProgress(d); closeSheet(); sound.sfx('fanfare'); toast(`Restored: level ${d.level}. Lovely jubbly!`); renderMap(); };
+}
 
 // ---------- happy hour ----------
 function happyHour() {
@@ -95,6 +119,10 @@ function renderMap() {
   $('play-sub').innerHTML = `${esc(L.name)} &middot; ${esc(L.zone)}${L.tier !== 'normal' ? ` <span class="badge ${L.tier}">${esc(L.label)}</span>` : ''}${L.club ? ' <span class="badge club">Club Night</span>' : ''}`;
   $('daily-sub').textContent = S.daily.date === today() && S.daily.plays ? `Today's best: ${fmt(S.daily.best)}. Have another go?` : 'Today\'s puzzle + Rhyme Time';
   $('night-sub').textContent = S.nightBest ? `Your best: ${fmt(S.nightBest)}` : 'Endless. How far can you go?';
+  const job = nextJob(S.pub.done);
+  $('pub-sub').textContent = job ? (S.bricks >= job.cost ? `Ready to build: ${job.name}!` : `Next job: ${job.name} (${fmt(job.cost)} bricks)`) : 'All done up. What a boozer!';
+  $('btn-pub').classList.toggle('ready', !!job && S.bricks >= job.cost);
+  $('btn-wheel').hidden = S.wheelDate === today();
   const hh = happyHour();
   $('happy-banner').hidden = !hh.active;
   if (hh.active) $('happy-banner').textContent = `Happy Hour at the Ronnie Arms! Double points and bricks until ${hourLabel(hh.hour + 1)}.`;
@@ -135,6 +163,8 @@ $('btn-profile').addEventListener('click', () => renderWelcome());
 $('btn-settings').addEventListener('click', () => { renderSettings(); show('scr-settings'); });
 $('btn-board').addEventListener('click', () => { sound.unlock(); show('scr-board'); loadBoard('daily'); });
 $('btn-daily').addEventListener('click', () => { sound.unlock(); openDaily(); });
+$('btn-pub').addEventListener('click', () => { sound.unlock(); sound.sfx('tap'); renderPub(); show('scr-pub'); say('pub-open'); });
+$('btn-wheel').addEventListener('click', () => { sound.unlock(); openWheel(); });
 $('btn-night').addEventListener('click', () => { sound.unlock(); startGame(nightBusLevel((Math.random() * 1e9) | 0), 'night'); });
 for (const b of document.querySelectorAll('.back')) b.addEventListener('click', () => history.back());
 
@@ -150,7 +180,7 @@ function goalIcon(g) {
 function goalText(g, count) {
   if (g.type === 'collect') return `Collect ${count} ${TILE_NAMES[g.colour]}${count === 1 ? '' : 's'}`;
   if (g.type === 'puddles') return 'Mop up every puddle';
-  if (g.type === 'blockers') return 'Clear all the fog and cones';
+  if (g.type === 'blockers') return 'Clear everything in the way';
   if (g.type === 'eels') return `Bring ${count} pot${count === 1 ? '' : 's'} of jellied eels home`;
   if (g.type === 'jack') return `Roll ${count} jack${count === 1 ? '' : 's'} to the bottom`;
   return `Score ${fmt(g.count)} points`;
@@ -200,10 +230,11 @@ function openPreLevel(n) {
 async function startGame(L, mode, boosters = []) {
   sound.unlock();
   closeSheet();
-  const board = new Board(L, { seed: L.seed });
+  const board = new Board(L, { seed: L.seed, luckyChance: mode === 'daily' ? 0 : 1 / 110 });
   const hh = happyHour();
   if (hh.active) board.mult = 2;
-  G = { L, mode, board, moves: L.moves, busy: false, over: false, used: 0, van: -1, pigeon: -1, hintT: 0, bonusTotal: 0 };
+  if (mode === 'level') { S.tries[L.n] = (S.tries[L.n] || 0) + 1; persist(); }
+  G = { L, mode, board, moves: L.moves, busy: false, over: false, used: 0, van: -1, pigeon: -1, hintT: 0, bonusTotal: 0, baseMult: board.mult, luckyMoves: 0, said: {} };
   const placed = [];
   for (const k of boosters) placed.push(board.placeSpecial({ cab: Math.random() < 0.5 ? K.CABH : K.CABV, ben: K.BEN, button: K.BUTTON }[k]));
   let bigBen = false;
@@ -228,6 +259,8 @@ async function startGame(L, mode, boosters = []) {
   if (mode === 'night') say('nightbus', { force: true });
   else if (mode === 'daily') say('daily', { force: true });
   else if (L.club) say('club', { force: true });
+  else if ((L.n - 1) % LEVELS_PER_STATION === 0) sound.sayId('st-' + slug(L.name));
+  else if (Math.random() < 0.5 && board.goals.length) { const g = board.goals[0]; say(g.type === 'collect' ? 'goal-collect-' + g.colour : 'goal-' + g.type, { force: true }); }
   else say('start', { force: true });
   sound.sfx('ding');
   const notes = [];
@@ -326,6 +359,10 @@ async function doMove(run) {
 
 async function afterMove(st) {
   const { board, mode } = G;
+  if (G.luckyMoves > 0 && --G.luckyMoves === 0) { board.mult = G.baseMult; toast('Lucky jack\'s worn off.', 1400); }
+  if (st.lucky) { G.luckyMoves = 3; board.mult = G.baseMult * 2; toast('Lucky jack! Double points for 3 moves!'); sound.sfx('sparkle'); say('lucky', { force: true }); }
+  if (st.nicked && !G.said.thief) { G.said.thief = true; say('thief', { force: true }); }
+  if (st.boxes) { sound.sfx('sparkle'); if (!G.said.box) { G.said.box = true; say('box', { force: true }); } }
   if (mode === 'night') {
     const bonus = st.specials + (st.cascade >= 4 ? 2 : st.cascade >= 3 ? 1 : 0);
     if (bonus) { G.moves += bonus; G.bonusTotal += bonus; toast(`+${bonus} move${bonus > 1 ? 's' : ''}!`, 1400); sound.sfx('coin'); }
@@ -409,7 +446,7 @@ async function win() {
   if (newLevel) S.level = n + 1;
   S.bricks += bricks; S.streak++; S.winsSinceSwag++; S.stats.played++; S.stats.won++;
   queueScore(S, { board: BOARDS.furthest(), player: S.player.name, avatar: S.player.avatar, score: Math.max(n, S.level - 1), stars });
-  persist(); flush(S, persist);
+  persist(); flush(S, persist); backup();
 
   const word = stars === 3 ? 'DIAMOND!' : L.tier === 'guvnor' ? 'GUV\'NOR!' : L.tier === 'hard' ? 'PROPER!' : ['BLINDING!', 'PUKKA!', 'LOVELY JUBBLY!', 'COR BLIMEY!'][(Math.random() * 4) | 0];
   const voice = stars === 3 ? 'three' : (L.tier === 'hard' || L.tier === 'guvnor') ? 'hard' : 'win';
@@ -434,8 +471,13 @@ async function win() {
     if (S.winsSinceSwag >= 5) { S.winsSinceSwag = 0; persist(); openSwag(); return true; }
     return kettle();
   };
-  card.querySelector('[data-act="map"]').onclick = () => { closeSheet(); renderMap(); afterwards(); };
-  card.querySelector('[data-act="next"]').onclick = () => { closeSheet(); if (!afterwards()) openPreLevel(S.level); else renderMap(); };
+  card.querySelector('[data-act="map"]').onclick = () => { closeSheet(); renderMap(); if (!afterwards()) maybeJoke(); };
+  card.querySelector('[data-act="next"]').onclick = () => {
+    closeSheet();
+    if (afterwards()) { renderMap(); return; }
+    if (Math.random() < 0.16 && S.bricks >= 30) openBarrow(() => openPreLevel(S.level));
+    else { maybeJoke(0.12); openPreLevel(S.level); }
+  };
 }
 
 async function lose() {
@@ -443,7 +485,7 @@ async function lose() {
   $('g-moves').parentElement.classList.remove('low');
   const { board, L } = G;
   const lost = S.streak;
-  S.streak = 0; S.stats.played++; persist();
+  S.streak = 0; S.stats.played++; persist(); backup();
   sound.sfx('lose'); say('lose', { force: true });
   const left = board.goals.filter((g) => g.done < g.count);
   const close = left.every((g) => (g.count - g.done) / g.count <= 0.15);
@@ -469,7 +511,7 @@ async function finishScoreMode() {
     S.daily.plays++;
     if (score > S.daily.best) { S.daily.best = score; best = true; }
   } else if (score > S.nightBest) { S.nightBest = score; best = true; }
-  S.bricks += stars * 4; persist();
+  S.bricks += stars * 4; persist(); backup();
   queueScore(S, { board: boardKey, player: S.player.name, avatar: S.player.avatar, score, stars });
   await celebrate({ word: best ? 'PERSONAL BEST!' : stars === 3 ? 'DIAMOND!' : 'LAST ORDERS!', stars, score, sub: mode === 'night' ? `End of the line. ${G.bonusTotal} bonus moves earned.` : 'That\'s your Daily Ronnie.', bus: mode === 'night' ? 'NIGHT BUS · TERMINUS' : 'THE DAILY RONNIE', voice: best || stars === 3 ? 'three' : 'win' });
   await flush(S, persist);
@@ -563,7 +605,7 @@ function openSwag() {
     const r = Math.random();
     const k = r < 0.5 ? 'cab' : r < 0.85 ? 'ben' : 'button';
     const bricks = 20 + ((Math.random() * 5) | 0) * 10;
-    S.boosters[k]++; S.bricks += bricks; persist();
+    S.boosters[k]++; S.bricks += bricks; persist(); backup();
     sound.sfx('fanfare'); confetti(90); vibe([40, 40, 80]);
     const name = { cab: 'a Black Cab', ben: 'a Big Ben', button: 'a Pearly Button' }[k];
     const c2 = openSheet(`
@@ -635,15 +677,138 @@ async function loadBoard(kind) {
 }
 for (const t of document.querySelectorAll('.tab')) t.addEventListener('click', () => { sound.sfx('tap'); loadBoard(t.dataset.board); });
 
+// ---------- jokes ----------
+function maybeJoke(chance = 0.25) {
+  if (Math.random() > chance) return;
+  const jokes = VOICE_LINES.filter((l) => l.group === 'joke' && l.id !== S.lastJoke);
+  const j = jokes[(Math.random() * jokes.length) | 0];
+  if (!j) return;
+  S.lastJoke = j.id; persist();
+  setTimeout(() => { sound.sayId(j.id); toast(j.text, 6000); }, 700);
+}
+
+// ---------- the Ronnie Arms ----------
+function renderPub(celebrate = false) {
+  const done = S.pub.done;
+  const ch = chapterOf(done);
+  const job = nextJob(done);
+  $('pub-title').textContent = ch.name;
+  $('pub-bricks').textContent = fmt(S.bricks);
+  $('pub-scene').innerHTML = sceneFor(ch.id, done);
+  $('pub-intro').textContent = `${ch.place}. ${ch.intro}`;
+  if (job && job.chapter === ch.id) {
+    const short = job.cost - S.bricks;
+    $('pub-next').innerHTML = `<span class="eyebrow">Next job</span><b>${esc(job.name)}</b><span class="cost">${fmt(job.cost)} bricks</span>
+      <button type="button" class="btn ${short > 0 ? 'btn-ghost' : 'btn-gold'} btn-wide" id="btn-build">${short > 0 ? `${fmt(short)} more bricks needed` : 'Do it!'}</button>`;
+    $('btn-build').onclick = () => buildJob(job);
+  } else {
+    $('pub-next').innerHTML = '<span class="eyebrow">All done</span><b>Every job finished. More to come!</b>';
+  }
+  $('pub-jobs').innerHTML = ch.jobs.map((j) => `<div class="pub-job ${done.includes(j.id) ? 'done' : ''}"><span>${done.includes(j.id) ? '✓ ' : ''}${esc(j.name)}</span><small>${done.includes(j.id) ? 'Done' : fmt(j.cost)}</small></div>`).join('');
+  if (celebrate) { const w = $('pub-scene'); w.classList.remove('glow'); void w.offsetWidth; w.classList.add('glow'); }
+}
+
+function buildJob(job) {
+  if (S.bricks < job.cost) { sound.sfx('nope'); say('pub-short', { force: true }); toast(`You need ${fmt(job.cost - S.bricks)} more bricks. Win a few more levels!`); return; }
+  S.bricks -= job.cost; S.pub.done.push(job.id); persist(); backup();
+  sound.sfx('fanfare'); vibe([40, 40, 90]); confetti(120);
+  sound.sayId('pub-' + job.id);
+  const ch = CHAPTERS.find((c) => c.id === job.chapter);
+  const finished = ch.jobs.every((j) => S.pub.done.includes(j.id));
+  if (finished) {
+    renderPub(true);
+    const nextCh = CHAPTERS[CHAPTERS.indexOf(ch) + 1];
+    setTimeout(() => {
+      sound.sayId('pub-' + ch.id + '-done');
+      const card = openSheet(`<h2>${esc(ch.name)} is finished!</h2><div class="scene-wrap">${sceneFor(ch.id, S.pub.done)}</div><p class="big-label">${nextCh ? `Next: ${esc(nextCh.name)}. ${esc(nextCh.intro)}` : 'Every job done. More coming soon!'}</p><button type="button" class="btn btn-gold btn-wide" data-act="ok">${nextCh ? 'Let\'s have a look' : 'Lovely'}</button>`);
+      card.querySelector('[data-act="ok"]').onclick = () => { closeSheet(); renderPub(true); };
+    }, 2200);
+  } else {
+    renderPub(true);
+    toast(job.line, 3500);
+  }
+}
+
+// ---------- the Pearly Wheel ----------
+const WHEEL = [
+  { label: '20 bricks', bricks: 20, w: 5, c: '#D6202B' }, { label: 'Black Cab', booster: 'cab', w: 3, c: '#1B1B1B' },
+  { label: '50 bricks', bricks: 50, w: 3, c: '#2451B7' }, { label: 'Big Ben', booster: 'ben', w: 2, c: '#8C6D2F' },
+  { label: '30 bricks', bricks: 30, w: 5, c: '#4CB85A' }, { label: 'Pearly Button', booster: 'button', w: 1, c: '#7B3FA0' },
+  { label: '100 bricks', bricks: 100, w: 1, c: '#E08A1E' }, { label: '40 bricks', bricks: 40, w: 4, c: '#0F3B2E' },
+];
+function wheelSvg() {
+  const n = WHEEL.length, r = 150;
+  let g = '';
+  WHEEL.forEach((p, k) => {
+    const a0 = (k / n) * Math.PI * 2 - Math.PI / 2, a1 = ((k + 1) / n) * Math.PI * 2 - Math.PI / 2;
+    const x0 = 150 + r * Math.cos(a0), y0 = 150 + r * Math.sin(a0), x1 = 150 + r * Math.cos(a1), y1 = 150 + r * Math.sin(a1);
+    g += `<path d="M150 150 L${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1} Z" fill="${p.c}" stroke="#FBF8F0" stroke-width="3"/>`;
+    const am = (a0 + a1) / 2, tx = 150 + 92 * Math.cos(am), ty = 150 + 92 * Math.sin(am);
+    g += `<text x="${tx}" y="${ty}" fill="#FBF8F0" font-family="Fredoka, sans-serif" font-weight="700" font-size="15" text-anchor="middle" dominant-baseline="middle" transform="rotate(${(am * 180) / Math.PI + 90} ${tx} ${ty})">${p.label}</text>`;
+  });
+  for (let k = 0; k < 24; k++) { const a = (k / 24) * Math.PI * 2; g += `<circle cx="${150 + 144 * Math.cos(a)}" cy="${150 + 144 * Math.sin(a)}" r="3" fill="#FBF8F0"/>`; }
+  g += '<circle cx="150" cy="150" r="26" fill="#FBF8F0" stroke="#D9A93A" stroke-width="4"/><circle cx="143" cy="143" r="3" fill="#B9AE92"/><circle cx="157" cy="143" r="3" fill="#B9AE92"/><circle cx="143" cy="157" r="3" fill="#B9AE92"/><circle cx="157" cy="157" r="3" fill="#B9AE92"/>';
+  return `<svg class="wheel" id="wheel" viewBox="0 0 300 300" aria-hidden="true">${g}</svg>`;
+}
+function openWheel() {
+  if (S.wheelDate === today()) { toast('You\'ve had today\'s spin. Come back tomorrow!'); return; }
+  say('wheel', { force: true });
+  const card = openSheet(`<span class="eyebrow">Once a day</span><h2>The Pearly Wheel</h2><div class="wheel-box"><div class="pointer"></div>${wheelSvg()}</div><button type="button" class="btn btn-gold btn-wide" data-act="spin">Spin it!</button>`, { onClose: false });
+  card.querySelector('[data-act="spin"]').onclick = (e) => {
+    e.target.disabled = true;
+    const total = WHEEL.reduce((s2, p) => s2 + p.w, 0);
+    let r = Math.random() * total, k = 0;
+    for (; k < WHEEL.length; k++) { r -= WHEEL[k].w; if (r <= 0) break; }
+    k = Math.min(k, WHEEL.length - 1);
+    const prize = WHEEL[k];
+    S.wheelDate = today();
+    if (prize.bricks) S.bricks += prize.bricks; else S.boosters[prize.booster]++;
+    persist(); backup();
+    const seg = 360 / WHEEL.length;
+    const turn = 360 * 6 + (360 - (k * seg + seg / 2)) + (Math.random() - 0.5) * seg * 0.6;
+    $('wheel').style.transform = `rotate(${turn}deg)`;
+    let ticks = 0; const tk = setInterval(() => { sound.sfx('tap'); if (++ticks > 22) clearInterval(tk); }, 150);
+    setTimeout(() => {
+      sound.sfx('fanfare'); vibe([40, 40, 90]); confetti(100);
+      const c2 = openSheet(`<h2>You won ${esc(prize.label)}!</h2><p class="big-label" style="text-align:center">${prize.bricks ? 'Straight into the brick pile.' : 'Bring it into any level from the level screen.'}</p><button type="button" class="btn btn-gold btn-wide" data-act="ok">Lovely jubbly</button>`);
+      c2.querySelector('[data-act="ok"]').onclick = () => { closeSheet(); renderMap(); };
+    }, 3800);
+  };
+}
+
+// ---------- the Chapel Market barrow ----------
+function openBarrow(then) {
+  say('barrow', { force: true });
+  const offers = [{ k: 'cab', name: 'Black Cab', price: 30 }, { k: 'ben', name: 'Big Ben', price: 45 }, { k: 'button', name: 'Pearly Button', price: 80 }];
+  const card = openSheet(`<span class="eyebrow">Chapel Market</span><h2>Barrow boy's here!</h2><p>"Power-ups! Get your power-ups! Can't say fairer than that!"</p>
+    <div class="offers">${offers.map((o) => `<button type="button" class="offer" data-k="${o.k}" data-p="${o.price}" ${S.bricks < o.price ? 'disabled' : ''}>${specialSvg(o.k === 'cab' ? 'cabh' : o.k)}<b>${o.name}</b><span>${o.price} bricks</span></button>`).join('')}</div>
+    <p class="note">You've got ${fmt(S.bricks)} bricks.</p>
+    <button type="button" class="btn btn-ghost btn-wide" data-act="no">No ta, guv</button>`, { onClose: false });
+  card.querySelector('.offers').addEventListener('click', (e) => {
+    const b = e.target.closest('.offer'); if (!b || b.disabled) return;
+    S.bricks -= +b.dataset.p; S.boosters[b.dataset.k]++; persist(); backup();
+    sound.sfx('coin'); toast('Pleasure doing business!');
+    closeSheet(); then();
+  });
+  card.querySelector('[data-act="no"]').onclick = () => { closeSheet(); then(); };
+}
+
 // ---------- settings ----------
 function renderSettings() {
-  for (const k of ['sfx', 'voice', 'vibrate', 'kettle']) {
+  for (const k of ['sfx', 'voice', 'vibrate', 'kettle', 'music']) {
     const el = $('set-' + k);
     el.checked = !!S.settings[k];
-    el.onchange = () => { S.settings[k] = el.checked; sound.settings = S.settings; persist(); if (k === 'voice' && el.checked) { sound.unlock(); say('good', { force: true }); } };
+    el.onchange = () => { S.settings[k] = el.checked; sound.settings = S.settings; persist(); if (k === 'voice' && el.checked) { sound.unlock(); say('good', { force: true }); } if (k === 'music') { sound.unlock(); sound.music(false); } };
   }
 }
 $('btn-change').addEventListener('click', () => renderWelcome());
+$('btn-restore').addEventListener('click', async () => {
+  if (!configured()) { toast('Backups need the family leaderboard switched on.'); return; }
+  toast('Looking for your saved game...', 1500);
+  const found = await fetchProgress(S.player.name);
+  if (!found) { toast(`No saved game found for ${S.player.name}. Check the name matches exactly.`); return; }
+  offerRestore(found, false);
+});
 
 // ---------- back button (Android) ----------
 window.addEventListener('popstate', () => {
@@ -664,8 +829,8 @@ window.addEventListener('resize', () => {
   const wrap = $('board-wrap');
   view.layout(G.L, wrap.clientWidth, wrap.clientHeight);
 });
-document.addEventListener('pointerdown', () => sound.unlock(), { passive: true });
-window.addEventListener('online', () => flush(S, persist));
+document.addEventListener('pointerdown', () => { sound.unlock(); if (current === 'scr-map' || current === 'scr-pub') sound.music(true); }, { passive: true });
+window.addEventListener('online', () => { flush(S, persist); if (S.backupDue) backup(); });
 
 // ---------- boot ----------
 async function boot() {
@@ -677,6 +842,7 @@ async function boot() {
   view = new BoardView($('board'), images);
   bindBoard();
   if (S.player) renderMap(); else renderWelcome();
+  if (S.player && S.backupDue) backup();
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
   window.__ronnie = { S, get G() { return G; }, view, startGame, makeLevel, sound }; // for testing
 }

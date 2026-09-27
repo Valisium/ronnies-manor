@@ -4,6 +4,7 @@
  */
 const FAMILY_CODE = 'MANOR'; // must match js/config.js
 const SHEET = 'Scores';
+const PROGRESS = 'Progress';
 const BOARD_RE = /^(daily-\d{4}-\d{2}-\d{2}|nightbus|furthest)$/;
 
 function sheet_() {
@@ -17,6 +18,45 @@ function sheet_() {
   return sh;
 }
 
+function progressSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(PROGRESS);
+  if (!sh) {
+    sh = ss.insertSheet(PROGRESS);
+    sh.appendRow(['Saved', 'Player', 'Level', 'Bricks', 'Data']);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+// Progress backups are append-only: a restore picks the save with the highest level (then the newest),
+// so a fresh phone that starts at level 1 can never wipe out a good backup.
+function saveProgress_(body) {
+  const player = clean_(body.player, 16);
+  const data = body.data || {};
+  const text = JSON.stringify(data);
+  if (!player || text.length > 45000) return json_({ ok: false, error: 'bad progress' });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try { progressSheet_().appendRow([new Date(), player, Number(data.level) || 1, Number(data.bricks) || 0, text]); }
+  finally { lock.releaseLock(); }
+  return json_({ ok: true });
+}
+
+function loadProgress_(player) {
+  const sh = progressSheet_();
+  const n = sh.getLastRow() - 1;
+  const key = String(player || '').trim().toLowerCase();
+  let best = null;
+  if (n > 0 && key) {
+    for (const [saved, who, level, bricks, text] of sh.getRange(2, 1, n, 5).getValues()) {
+      if (String(who).toLowerCase() !== key) continue;
+      if (!best || level > best.level || (level === best.level && saved > best.saved)) best = { saved: saved, level: level, text: text };
+    }
+  }
+  return json_({ ok: true, data: best ? JSON.parse(best.text) : null, saved: best ? best.saved : null });
+}
+
 function json_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -27,6 +67,7 @@ function doPost(e) {
   let body;
   try { body = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'bad json' }); }
   if (!body || body.code !== FAMILY_CODE) return json_({ ok: false, error: 'wrong family code' });
+  if (body.type === 'progress') return saveProgress_(body);
   const rows = [];
   for (const s of (body.scores || []).slice(0, 50)) {
     const board = String(s.board || '');
@@ -45,6 +86,7 @@ function doPost(e) {
 function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.code !== FAMILY_CODE) return json_({ ok: false, error: 'wrong family code' });
+  if (p.action === 'progress') return loadProgress_(p.player);
   const board = String(p.board || '');
   if (!BOARD_RE.test(board)) return json_({ ok: false, error: 'unknown board' });
   const sh = sheet_();

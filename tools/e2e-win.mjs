@@ -2,10 +2,13 @@ import puppeteer from '/Users/christopheradams/.cache/howto-video/node_modules/p
 const OUT = process.argv[2];
 const b = await puppeteer.launch({ headless: 'new' });
 const p = await b.newPage();
+// never let tests touch the family's real leaderboard sheet
+await p.setRequestInterception(true);
+p.on('request', (r) => (r.url().includes('script.google') ? r.abort() : r.continue()));
 await p.setViewport({ width: 412, height: 860, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror: ' + e.message + ' ' + (e.stack || '').split('\n').slice(0, 4).join(' | ')));
-p.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+p.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('Failed to load resource')) errors.push('console: ' + m.text()); });
 await p.goto('http://localhost:8765/', { waitUntil: 'networkidle0' });
 await p.evaluate(() => { localStorage.setItem('ronnies-manor-v1', JSON.stringify({ v: 1, player: { name: 'Ronnie', avatar: 'bowls' }, level: 17, stars: { 1: 3, 2: 2 }, bricks: 120, streak: 4, boosters: { cab: 1, ben: 1, button: 0 } })); });
 await p.reload({ waitUntil: 'networkidle0' });

@@ -46,7 +46,7 @@ export class BoardView {
   }
 
   spriteFrom(s, i) {
-    return { id: s.id[i], x: i % s.W, y: (i / s.W) | 0, kind: s.kind[i], col: s.col[i], clamp: s.clamp[i], sc: 1, a: 1, rot: 0, anim: null };
+    return { id: s.id[i], x: i % s.W, y: (i / s.W) | 0, kind: s.kind[i], col: s.col[i], clamp: s.clamp[i], lucky: s.lucky ? s.lucky[i] : 0, sc: 1, a: 1, rot: 0, anim: null };
   }
 
   // ---------- animation ----------
@@ -119,7 +119,7 @@ export class BoardView {
         this.sprites.set(id, sp);
       } else {
         if (sp.kind !== next.kind[i]) { sp.kind = next.kind[i]; sp.sc = 1.35; this.tween(sp, { sc: 1 }, 240, ease.back); }
-        sp.col = next.col[i]; sp.clamp = next.clamp[i];
+        sp.col = next.col[i]; sp.clamp = next.clamp[i]; sp.lucky = next.lucky ? next.lucky[i] : 0;
         if (sp.x !== x || sp.y !== y) {
           const dist = Math.hypot(sp.x - x, sp.y - y);
           const dur = Math.min(520, 90 + dist * 55);
@@ -159,6 +159,7 @@ export class BoardView {
     if (f.t === 'wood') { this.fx.push({ t: 'wood', i: f.i, path: f.path, t0: now, dur: 120 + f.path.length * 55 }); return 120 + f.path.length * 55; }
     if (f.t === 'rush') { this.fx.push({ t: 'ben', i: f.i, r: 1.5, t0: now, dur: 600 }); return 300; }
     if (f.t === 'made') { const [x, y] = this.xy(f.i); this.burst(x, y, '#F0C861', 10); return 0; }
+    if (f.t === 'hop') { const [x, y] = this.xy(f.to); this.burst(x, y, '#C9C3AE', 8); return 260; }
     return 0;
   }
 
@@ -221,7 +222,7 @@ export class BoardView {
         for (const key of Object.keys(sp.anim.to)) sp[key] = sp.anim.from[key] + (sp.anim.to[key] - sp.anim.from[key]) * e;
         if (k >= 1) sp.anim = null; else active = true;
       }
-      if (sp.dying) active = true;
+      if (sp.dying || sp.lucky) active = true;
       if (sp.y < -0.9) continue;
       let sc = sp.sc;
       const i = Math.round(sp.y) * this.W + Math.round(sp.x);
@@ -234,7 +235,8 @@ export class BoardView {
     for (let i = 0; i < snap.kind.length; i++) {
       if (!snap.blk[i]) continue;
       const x = i % snap.W, y = (i / snap.W) | 0;
-      const im = snap.blk[i] === B.FOG ? this.img.overlays.fog : snap.bhp[i] > 1 ? this.img.overlays.cone : this.img.overlays.cone1;
+      const t = snap.blk[i], o = this.img.overlays;
+      const im = t === B.FOG ? o.fog : t === B.BOX ? (snap.bhp[i] > 1 ? o.box : o.box1) : t === B.PIGEON ? o.pigeon : snap.bhp[i] > 1 ? o.cone : o.cone1;
       if (im) ctx.drawImage(im, X(x) + cell * 0.04, Y(y) + cell * 0.04, cell * 0.92, cell * 0.92);
     }
     // selection
@@ -273,6 +275,10 @@ export class BoardView {
       ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowOffsetY = cell * 0.04;
       ctx.drawImage(im, -s / 2, -s / 2, s, s);
       ctx.shadowColor = 'transparent';
+    }
+    if (sp.lucky && this.img.overlays.lucky) {
+      const b = s * 0.42, wob = Math.sin(performance.now() / 260) * 0.12;
+      ctx.save(); ctx.rotate(wob); ctx.drawImage(this.img.overlays.lucky, s * 0.14, -s * 0.56, b, b); ctx.restore();
     }
     if (sp.clamp) {
       const o = sp.clamp > 1 ? this.img.overlays.clamp2 : this.img.overlays.clamp;
